@@ -4,6 +4,7 @@ Flask API Application
 
 from flask import Flask, jsonify, request
 import pandas as pd
+import numpy as np
 from time import perf_counter
 from flasgger import Swagger, swag_from, LazyString, LazyJSONEncoder
 from cleansing import text_cleansing, cleansing_files
@@ -14,6 +15,10 @@ from db import (
 )
 import flask
 flask.json.provider.DefaultJSONProvider.sort_keys = False
+import pickle, re
+from tensorflow.keras.preprocessing.text import Tokenizer
+from keras.models import load_model
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 # Set Up Database
 db_connection = create_connection()
@@ -27,9 +32,9 @@ app.json_encoder = LazyJSONEncoder
 # create swagger config & swagger template
 Swagger_template ={
     "info":{
-        "title": LazyString(lambda: "Text Cleansing API"),
+        "title": LazyString(lambda: "Membersihkan Teks dan Menganalisis Sentimen API"),
         "version": LazyString(lambda: "1.0.0"),
-        "description": LazyString(lambda: "Dokumentasi API untuk membersihkan text")
+        "description": LazyString(lambda: "Dokumentasi API untuk Membersihkan Teks dan Menganalisisnya")
     },
     "host": LazyString(lambda: request.host)
 }
@@ -55,7 +60,7 @@ def home():
     welcome_msg = {
         "version": "1.0.0",
         "message": "Welcome to Flask API",
-        "author": "Adelia and Sony"
+        "author": "Adelia Christyanti dan Sony Dermawan"
     }
     return jsonify(welcome_msg)
 
@@ -105,6 +110,54 @@ def cleansing_upload():
     print("Upload result to database success!")
     result_response = df_cleansing.to_dict(orient='records')
     return jsonify(result_response)
+
+max_features = 96
+# tokenizer = Tokenizer(num_words=max_features, split =' ', lower=True) # ini nanti diganti dari jupyter lab
+file = open('tokenizer/tokenizer.pickle','rb') # tokenizer
+tokenizer = pickle.load(file)
+file.close()
+sentiment = ['negative', 'neutral', 'positive']
+
+# file = open('resources_of_lstm/x_pad_sequences.pickle','rb')
+# pad_sequences = pickle.load(file)
+# file.close()
+
+def cleansing(sent):
+    string = sent.lower()
+    string = re.sub(r'[^a-zA-Z0-9]', ' ', string)
+    string = string.strip()
+    return string
+
+
+
+#file_token = load_model('tokenizer/tokenizer.pickle')
+
+model_file_from_lstm = load_model('model_of_lstm/model.h5')
+
+@swag_from("docs/lstm.yml", methods=['POST'])
+@app.route('/lstm', methods=['POST'])
+def lstm():
+    original_text = request.form.get('text')
+    text = [cleansing(original_text)]
+    # X = tokenizer.texts_to_sequences(total_data)
+    feature = tokenizer.texts_to_sequences(text)# pakai dari jupyter lab
+    feature = pad_sequences(feature, maxlen=max_features)
+
+
+    prediction = model_file_from_lstm.predict(feature)
+    get_sentiment = sentiment[np.argmax(prediction[0])]
+
+    json_response = {
+        'status_code': 200,
+        'description': "Result of Sentiment Analysis using LSTM",
+        'data':{
+            'raw text': original_text,
+            'clean text':text,
+            'sentiment': get_sentiment
+        },
+    }
+    response_data = jsonify(json_response)
+    return response_data
 
 if __name__ == '__main__':
     app.run()
