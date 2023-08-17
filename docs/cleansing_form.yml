@@ -1,9 +1,9 @@
 tags:
-  - name: analisis_sentimen_LSTM
+  - name: cleansing_form
 get:
-  description: Menganalisis Teks menggunakan POST Method From user input form
+  description: Cleansing Text using POST Method From user input form
 parameters:
-  - name: text
+  - name: raw_text
     in: formData
     required: true
     type: string
