@@ -22,7 +22,7 @@ from imblearn.over_sampling import SMOTE
 import joblib
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_score, GridSearchCV
-
+from cleansing import text_cleansing
 
 
 # import raw dataset for preprocessing
@@ -31,23 +31,6 @@ df = pd.read_csv('train_preprocess.tsv.txt',
                  names = ["text", "label"])
 
 # remove special characters
-
-def text_cleansing(text):
-  # Bersihkan tanda baca (selain huruf dan angka)
-  clean_text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
-  # Convert to lowercase
-  clean_text = clean_text.lower()
-
-  # Remove specific characters properly escaped
-  clean_text = re.sub(r'\\xf0\\S+', '', clean_text)
-  clean_text = re.sub(r'\\xe\\S+', '', clean_text)
-  # remove repeated character
-  clean_text = re.sub(r'(.)\1+', r'\1', clean_text)
-
-  # Strip leading and trailing spaces
-  clean_text = clean_text.strip()
-
-  return clean_text
 
 df['clean_text'] = df.text.apply (text_cleansing)
 df.head()
