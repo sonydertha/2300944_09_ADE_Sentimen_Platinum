@@ -41,10 +41,7 @@ def text_cleansing(text):
   # Remove specific characters properly escaped
   clean_text = re.sub(r'\\xf0\\S+', '', clean_text)
   clean_text = re.sub(r'\\xe\\S+', '', clean_text)
-
-  # Remove repeated characters
-  clean_text = re.sub(r'(.)\\1+', r'\1', clean_text)
-  # repeated character
+  # remove repeated character
   clean_text = re.sub(r'(.)\1+', r'\1', clean_text)
 
   # Strip leading and trailing spaces
@@ -199,8 +196,3 @@ def predict_NN (text):
 # Print the predicted label
 
 # print(f"sentimennya adalah : {predict_NN(new_text_processed)}")
-
-
-
-
-
