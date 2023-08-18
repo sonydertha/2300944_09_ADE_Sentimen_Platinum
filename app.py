@@ -19,7 +19,7 @@ import pickle, re
 from tensorflow.keras.preprocessing.text import Tokenizer
 from keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-from Metode_NN import  text_processing, predict_NN
+from Metode_NN import  text_processing, predict_NN , predict_NN_files
 
 # Set Up Database
 db_connection = create_connection()
@@ -33,7 +33,7 @@ app.json_encoder = LazyJSONEncoder
 # create swagger config & swagger template
 Swagger_template ={
     "info":{
-        "title": LazyString(lambda: "API untuk analisis sentimen"),
+        "title": LazyString(lambda: "API untuk analisis sentimen menggunakan LSTM dan NeuralNetwork"),
         "version": LazyString(lambda: "1.0.0"),
         "description": LazyString(lambda: "Dokumentasi API untuk analisis sentimen")
     },
@@ -61,7 +61,7 @@ def home():
     welcome_msg = {
         "version": "1.0.0",
         "message": "Welcome to Flask API",
-        "author": "Adelia Christyanti dan Sony Dermawan"
+        "author": "Adelia Christyanti dan Sony Dertha Setiawan"
     }
     return jsonify(welcome_msg)
 
@@ -159,6 +159,62 @@ def lstm():
     response_data = jsonify(json_response)
     return response_data
 
+def lstm(text):
+    # Tidak perlu mengambil nilai text dari request.form.get('text')
+    # Langsung gunakan nilai text dari parameter fungsi
+    text = [cleansing(text)]  # Menggunakan nilai text yang diberikan kepada fungsi lstm
+    feature = tokenizer.texts_to_sequences(text)
+    feature = pad_sequences(feature, maxlen=max_features)
+
+    prediction = model_file_from_lstm.predict(feature)
+    get_sentiment = sentiment[np.argmax(prediction[0])]
+    return get_sentiment
+
+def lstm(text):
+    text = [cleansing(text)]
+    feature = tokenizer.texts_to_sequences(text)
+    feature = pad_sequences(feature, maxlen=max_features)
+
+    prediction = model_file_from_lstm.predict(feature)
+    get_sentiment = sentiment[np.argmax(prediction[0])]
+    return get_sentiment
+
+def cleansing(sent):
+    print(f"Input to cleansing: {sent}")
+    string = sent.lower()
+    string = re.sub(r'[^a-zA-Z0-9]', ' ', string)
+    string = string.strip()
+    print(f"Cleansed String: {string}")
+    return string
+
+def analisis_file(file_upload):
+    df_upload = pd.DataFrame(file_upload.iloc[:, [0]])
+    df_upload.columns = ["raw_text"]
+    df_upload["sentimen"] = df_upload["raw_text"].apply(lstm)
+    
+    print("Cleansing text success!")
+    return df_upload
+
+@swag_from('docs/analisis_data_upload.yml', methods=['POST'])
+@app.route('/analisis_lstm', methods=['POST'])
+def analisis_lstm():
+    uploaded_file = request.files['upload_file']
+    df_upload = pd.read_csv(uploaded_file, encoding='latin-1').head(1000)
+    print('Read dataframe Upload success!')
+    
+    start = perf_counter()
+    df_cleansing = analisis_file(df_upload)
+    end = perf_counter()
+    time = end - start
+    print(f'processing time: {time}')
+    
+    sentiment = ['negative', 'neutral', 'positive']
+    insert_upload_result_to_db(df_cleansing, sentiment)    
+    print("Upload result to database success!")
+    
+    result_response = df_cleansing.to_dict(orient='records')
+    return jsonify(result_response)
+
 # sentimen analysis with NeuralNetwork
 @swag_from("docs/NeuralNetwork.yml", methods=['POST']) ## bikin yml file
 @app.route('/NeuralNetwork', methods=['POST'])
@@ -178,6 +234,30 @@ def NeuralNetwork():
     }
     response_data = jsonify(json_response)
     return response_data
+
+# sentimen analysis with NeuralNetwork using csv upload
+@swag_from('docs/NeuralNetwork_upload.yml', methods=['POST'])
+@app.route('/NeuralNetwork_upload', methods=['POST'])
+def NeuralNetwork_upload():
+    # Get file from upload to dataframe
+    uploaded_file = request.files['upload_file']
+    # Read csv file to dataframe
+    df_upload = pd.read_csv(uploaded_file,encoding ='latin-1').head(1000)
+    print('Read dataframe Upload success!')
+    start = perf_counter()
+    df_predict_NN = predict_NN_files(df_upload)
+    end = perf_counter()
+    time = end - start
+    print(f'processing time :{time}')
+    
+    # Upload result to database 
+    # define new connection
+    db_connection = create_connection()
+    insert_upload_result_to_db(db_connection, df_predict_NN)    
+    print("Upload result to database success!")
+    result_response = df_predict_NN.to_dict(orient='records')
+    return jsonify(result_response)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
