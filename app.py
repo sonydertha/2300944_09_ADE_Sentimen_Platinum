@@ -19,6 +19,7 @@ import pickle, re
 from tensorflow.keras.preprocessing.text import Tokenizer
 from keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+from Metode_NN import  text_processing, predict_NN
 
 # Set Up Database
 db_connection = create_connection()
@@ -32,9 +33,9 @@ app.json_encoder = LazyJSONEncoder
 # create swagger config & swagger template
 Swagger_template ={
     "info":{
-        "title": LazyString(lambda: "Membersihkan Teks dan Menganalisis Sentimen API"),
+        "title": LazyString(lambda: "API untuk analisis sentimen"),
         "version": LazyString(lambda: "1.0.0"),
-        "description": LazyString(lambda: "Dokumentasi API untuk Membersihkan Teks dan Menganalisisnya")
+        "description": LazyString(lambda: "Dokumentasi API untuk analisis sentimen")
     },
     "host": LazyString(lambda: request.host)
 }
@@ -89,6 +90,7 @@ def cleansing_form():
     db_connection = create_connection()
     insert_result_to_db(db_connection, raw_text, clean_text)
     return jsonify(result_response)
+
 # Cleansing text using csv upload
 @swag_from('docs/cleansing_upload.yml', methods=['POST'])
 @app.route('/cleansing_upload', methods=['POST'])
@@ -128,8 +130,6 @@ def cleansing(sent):
     string = string.strip()
     return string
 
-
-
 #file_token = load_model('tokenizer/tokenizer.pickle')
 
 model_file_from_lstm = load_model('model_of_lstm/model.h5')
@@ -159,5 +159,25 @@ def lstm():
     response_data = jsonify(json_response)
     return response_data
 
+# sentimen analysis with NeuralNetwork
+@swag_from("docs/NeuralNetwork.yml", methods=['POST']) ## bikin yml file
+@app.route('/NeuralNetwork', methods=['POST'])
+def NeuralNetwork():
+    original_text = request.form.get('text')
+    text = text_processing(original_text)
+    result = predict_NN(text)
+    sentiment_list = result.tolist()
+    json_response = {
+        'status_code': 200,
+        'description': "Result of Sentiment Analysis using LSTM",
+        'data':{
+            'raw text': original_text,
+            'clean text':text,
+            'sentiment': sentiment_list
+        },
+    }
+    response_data = jsonify(json_response)
+    return response_data
+
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)

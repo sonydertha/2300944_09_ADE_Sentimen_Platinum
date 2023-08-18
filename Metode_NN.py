@@ -1,6 +1,6 @@
 # import library
 import pandas as pd
-
+import re
 import nltk
 nltk.download('stopwords')
 nltk.download('punkt')
@@ -30,38 +30,36 @@ df = pd.read_csv('train_preprocess.tsv.txt',
                  sep ='\t',
                  names = ["text", "label"])
 
-# remove special characters
 
-df['clean_text'] = df.text.apply (text_cleansing)
-df.head()
+# teks cleansing dilakukan terpisah karena makan waktu untuk ganti kata alay ke kata formal
+# df['clean_text'] = df.text.apply (text_cleansing)
+# df.head()
+
+# import dataset with clean_text
 
 # Create a function to tokenize the text
-def tokenize(text):
+def word_tokenize(text):
   words = nltk.word_tokenize(text)
   return words
 
-# Create a function to tokenize the text using word_tokenize
+# # Create a function to tokenize the text using word_tokenize
 def tokenize_sent(text):
   sent = nltk.sent_tokenize(text)
   return sent
 
-
-
-# Apply the tokenization function to `clean_text` column
-df["tokens"] = df["clean_text"].apply(tokenize)
-df["tokens_sent"] = df["clean_text"].apply(tokenize_sent)
-
-
-# get Indonesian stopword
+# # get Indonesian stopword
 stop_words = nltk.corpus.stopwords.words("indonesian")
+# # function to remove stop words
 
-# function to remove stop words
 def filter_stopwords (tokens) :
     filtered_tokens = [token for token in tokens if token not in stop_words]
     return filtered_tokens
 
-# Remove the stop words from the tokens
-df["filtered_tokens"] = df["tokens"].apply(filter_stopwords)
+# # Apply the tokenization function to `clean_text` column
+# df["tokens"] = df["clean_text"].apply(tokenize)
+# df["tokens_sent"] = df["clean_text"].apply(tokenize_sent)
+# # Remove the stop words from the tokens
+# df["filtered_tokens"] = df["tokens"].apply(filter_stopwords)
 
 # Initialize Sastrawi Stemmer
 stemmer_factory = StemmerFactory()
@@ -72,14 +70,7 @@ def stemming(tokens):
  stemmed_tokens = [stemmer.stem(token) for token in tokens]
  return ' '.join(stemmed_tokens)   
 
-
-#preprosseing
-##  (text_cleansing)x
-## tokenize x
-## filter stopword x
-## preprocess_text (stemming) x
-## test = tfidf_vectorizer.fit_transform(hasil_baru)
-
+# apply stemmer dimatikan karena sangat lama
 # df['preprocessed_text'] = df['filtered_tokens'].apply(stemming)
 
     ## TRAINING
@@ -99,7 +90,7 @@ tfidf_vectorizer = TfidfVectorizer()
 tfidf_features = tfidf_vectorizer.fit_transform(tokenized_texts)
 
 # Split train and test
-X_train, X_test, y_train, y_test = train_test_split(tfidf_features, df['label'], test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(tfidf_features, df_ready['label'], test_size=0.2, random_state=42)
 
 # tackle imbalance 
 smote = SMOTE(random_state=42)
@@ -107,7 +98,7 @@ X_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
 
 # Training with logistic regresion
 # Create a LogisticRegression classifier
-logreg_classifier = LogisticRegression(max_iter=100)
+logreg_classifier = LogisticRegression(max_iter=1000)
 
 # Fit the model on the training data
 logreg_classifier.fit(X_train_smote, y_train_smote)
@@ -116,10 +107,10 @@ logreg_classifier.fit(X_train_smote, y_train_smote)
 predictions_logreg = logreg_classifier.predict(X_test)
 
 # Calculate evaluation metrics
-accuracy_logreg = accuracy_score(y_test, predictions_logreg)
-precision_logreg = precision_score(y_test, predictions_logreg, average='weighted')
-recall_logreg = recall_score(y_test, predictions_logreg, average='weighted')
-f1_logreg = f1_score(y_test, predictions_logreg, average='weighted')
+# accuracy_logreg = accuracy_score(y_test, predictions_logreg)
+# precision_logreg = precision_score(y_test, predictions_logreg, average='weighted')
+# recall_logreg = recall_score(y_test, predictions_logreg, average='weighted')
+# f1_logreg = f1_score(y_test, predictions_logreg, average='weighted')
 
 # Define the logistic regression model
 logreg_model = LogisticRegression()
@@ -127,16 +118,17 @@ logreg_model = LogisticRegression()
 # Define the range of hyperparameters
 param_grid = {
     'C': [0.01, 0.1, 1, 10, 100],  # regularization strength
-    'penalty': ['5','l1', 'l2','15']   # penalty type
+    'penalty': ['l1', 'l2','l5']   # penalty type
 }
 
+## tuningnya dimatiin dulu biar cepet
 # hyperparameter tuning logreg
 # Perform grid search over hyperparameter grid
-grid_search = GridSearchCV(logreg_model, param_grid, cv=5, scoring='accuracy')
-grid_search.fit(X_train, y_train)
+# grid_search = GridSearchCV(logreg_model, param_grid, cv=5, scoring='accuracy')
+# grid_search.fit(X_train, y_train)
 
-best_params = grid_search.best_params_
-best_score = grid_search.best_score_
+# best_params = grid_search.best_params_
+# best_score = grid_search.best_score_
 
 tuned_logreg_model = LogisticRegression(C=10, penalty='l2' )
 
