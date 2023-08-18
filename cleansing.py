@@ -14,15 +14,7 @@ def text_cleansing(text):
     clean_text = re.sub(r'xf0\S+', '', clean_text)
     clean_text = re.sub(r'xe\S+', '', clean_text)
     #remove repeated character
-    clean_text = re.sub(r'(.)\\1+', r'\1', clean_text)
-
-    # # abusive  # tidak menggunakkan kamus abusive untuk analisis sentimen
-    # conn = create_connection()
-    # df_abusive = get_abusive_data(conn)
-    # abusive_words = df_abusive['word'].tolist()
-    # for word in abusive_words:
-    #     clean_text = clean_text.replace(word, '***')
-
+    clean_text = re.sub(r'(.)\1+', r'\1', clean_text)
     # menggantikan kata alay dengan kata formal
     replacement_words = pd.read_csv('csv_data/new_kamusalay.csv')
     replacement_dict = dict(zip(replacement_words['alay_word'], replacement_words['formal_word']))
