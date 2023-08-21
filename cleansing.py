@@ -1,11 +1,15 @@
-""" 
-Function untuk membersihkan data text
+"""
+Function untuk membersihkan data teks
 """
 import re
 import pandas as pd
-from db import get_abusive_data, create_connection
+import pickle, re
+from tensorflow.keras.preprocessing.text import Tokenizer
+from keras.models import load_model
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+import numpy as np
 
-def text_cleansing(text):
+def cleansing(text):
     # Bersihkan tanda baca (selain huruf dan angka)
     clean_text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
     # ubah teks menjadi lower case
@@ -25,15 +29,4 @@ def text_cleansing(text):
     clean_text = clean_text.strip()
     return clean_text
 
-def cleansing_files(file_upload):
-    # read csv file upload, jika eror dengan metode biasa
-    df_upload = pd.DataFrame(file_upload.iloc[:,[0]])
-    # rename kolom menjadi "raw_text"
-    df_upload.columns = ["raw_text"]
-    # bersihkan teks menggunakan fungsi cleansing
-    # simpan di kolom "clean_text"
-    df_upload["clean_text"] = df_upload["raw_text"].apply(text_cleansing)
-    # mensensor kata abusive sesuai dari data dalam bentuk csv
-    
-    print("Cleansing text succes!")
-    return df_upload
+

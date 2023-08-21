@@ -17,6 +17,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.neural_network import MLPClassifier
 import string
 from imblearn.over_sampling import SMOTE
 import joblib
@@ -49,8 +50,8 @@ def tokenize_sent(text):
 
 # # get Indonesian stopword
 stop_words = nltk.corpus.stopwords.words("indonesian")
-# # function to remove stop words
 
+# # function to remove stop words
 def filter_stopwords (tokens) :
     filtered_tokens = [token for token in tokens if token not in stop_words]
     return filtered_tokens
@@ -73,7 +74,7 @@ def stemming(tokens):
 # apply stemmer dimatikan karena sangat lama
 # df['preprocessed_text'] = df['filtered_tokens'].apply(stemming)
 
-    ## TRAINING
+    ## FEATURE EXTRACTION 
 
 # import preprocessed dataset 
 df_ready = pd.read_csv("sentiment_analysis_dataset_filtered_tokens.csv")
@@ -83,64 +84,53 @@ df_ready['preprocessed_text'] = df_ready['preprocessed_text'].fillna('')
 # perpare preprocessed and tokenized text data
 tokenized_texts = df_ready['preprocessed_text']
 
+
+# perpare preprocessed and tokenized text data
+tokenized_texts = df_ready['preprocessed_text']
+
 # Initialize the TF-IDF vectorizer
 tfidf_vectorizer = TfidfVectorizer()
 
 # Fit and transform the data to obtain TF-IDF features from text
 tfidf_features = tfidf_vectorizer.fit_transform(tokenized_texts)
 
+
 # Split train and test
-X_train, X_test, y_train, y_test = train_test_split(tfidf_features, df_ready['label'], test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(
+   tfidf_features, df_ready['label']
+   , test_size=0.2, random_state=42
+   )
 
 # tackle imbalance 
 smote = SMOTE(random_state=42)
 X_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
 
-# Training with logistic regresion
-# Create a LogisticRegression classifier
-logreg_classifier = LogisticRegression(max_iter=1000)
+    ## Training with MLP
+
+ # initialize  MLP Classifier
+mlp_classifier = MLPClassifier()
 
 # Fit the model on the training data
-logreg_classifier.fit(X_train_smote, y_train_smote)
+mlp_classifier.fit(X_train_smote, y_train_smote)
 
 # Predict on the test data
-predictions_logreg = logreg_classifier.predict(X_test)
+predictions_mlp = mlp_classifier.predict(X_test)
 
 # Calculate evaluation metrics
-# accuracy_logreg = accuracy_score(y_test, predictions_logreg)
-# precision_logreg = precision_score(y_test, predictions_logreg, average='weighted')
-# recall_logreg = recall_score(y_test, predictions_logreg, average='weighted')
-# f1_logreg = f1_score(y_test, predictions_logreg, average='weighted')
+accuracy_logreg = accuracy_score(y_test, predictions_mlp)
+precision_logreg = precision_score(y_test, predictions_mlp, average='weighted')
+recall_logreg = recall_score(y_test, predictions_mlp, average='weighted')
+f1_logreg = f1_score(y_test, predictions_mlp, average='weighted')
 
-# Define the logistic regression model
-logreg_model = LogisticRegression()
 
-# Define the range of hyperparameters
-param_grid = {
-    'C': [0.01, 0.1, 1, 10, 100],  # regularization strength
-    'penalty': ['l1', 'l2','l5']   # penalty type
-}
-
-## tuningnya dimatiin dulu biar cepet
-# hyperparameter tuning logreg
-# Perform grid search over hyperparameter grid
-# grid_search = GridSearchCV(logreg_model, param_grid, cv=5, scoring='accuracy')
-# grid_search.fit(X_train, y_train)
-
-# best_params = grid_search.best_params_
-# best_score = grid_search.best_score_
-
-tuned_logreg_model = LogisticRegression(C=10, penalty='l2' )
-
-## save and load model
 # Save the tuned logistic regression model 
-model_logreg_filename = 'tuned_logreg_model.pkl'
-with open(model_logreg_filename, 'wb') as model_file:
-    joblib.dump(tuned_logreg_model, model_logreg_filename)
+model_mlp_filename = 'tuned_mlp_model.jl'
+with open(model_mlp_filename, 'wb') as model_file:
+    joblib.dump(mlp_classifier, model_mlp_filename)
 
 # Load the tuned logistic regression model 
-with open(model_logreg_filename, 'rb') as model_file:
-    loaded_model_logreg = joblib.load(model_logreg_filename)
+with open(model_mlp_filename, 'rb') as model_file:
+    loaded_model_mlp = joblib.load(model_mlp_filename)
 
 
 ## save and load tfidf_vectorizer
@@ -154,7 +144,7 @@ with open(tfidf_vectorizer_filename, 'rb') as vectorizer_file:
    loaded_tfidf_vectorizer = joblib.load(tfidf_vectorizer_filename)
 
 # Fit the loaded model on the training data
-loaded_model_logreg.fit(X_train_smote, y_train_smote)
+loaded_model_mlp.fit(X_train_smote, y_train_smote)
 
 def text_processing(text):
    processed_text = text_cleansing(text)
@@ -165,8 +155,21 @@ def text_processing(text):
 
 def predict_NN (text):
    tfidf_vector = loaded_tfidf_vectorizer.transform([text])  
-   sentiment = loaded_model_logreg.predict(tfidf_vector)
+   sentiment = loaded_model_mlp.predict(tfidf_vector)
    return sentiment 
+
+def predict_NN_files (file_upload):
+   # read csv file upload, jika eror dengan metode biasa
+    df_NN_upload = pd.DataFrame(file_upload.iloc[:,[0]])
+    # rename kolom menjadi "raw_text"
+    df_NN_upload.columns = ["raw_text"]
+    # processing texts on file
+    df_NN_upload["processed_text"] = df_NN_upload["raw_text"].apply(text_processing)
+    print ("Text Processing done!")
+    # predict Sentiment 
+    df_NN_upload["Sentiment"] = df_NN_upload["processed_text"].apply(predict_NN)
+    print ("Sentiment Analysis Done")
+    return df_NN_upload
 
 # Print the predicted label
 

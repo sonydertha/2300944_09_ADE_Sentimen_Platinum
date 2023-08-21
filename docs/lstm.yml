@@ -3,7 +3,7 @@ tags:
 get:
   description: Menganalisis Teks menggunakan POST Method From user input form
 parameters:
-  - name: text
+  - name: raw_text
     in: formData
     required: true
     type: string

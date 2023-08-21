@@ -1,5 +1,5 @@
 tags:
-  - name: Tugas platinum Adelia dan Sony Menganalisis Sentimen
+  - name: Tugas platinum Adelia dan Sony, Menganalisis Sentimen dalam teks menggunakna LSTM dan NeuralNetwork
 paths:
   /:
 get:
