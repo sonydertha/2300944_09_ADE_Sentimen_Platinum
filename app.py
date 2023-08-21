@@ -1,29 +1,24 @@
 """
-Flask API Application
-"""
 
+Flask API Application
+
+"""
 from flask import Flask, jsonify, request
+from flasgger import Swagger, swag_from, LazyJSONEncoder, LazyString
 import pandas as pd
 import numpy as np
 from time import perf_counter
-from flasgger import Swagger, swag_from, LazyString, LazyJSONEncoder
-from cleansing import text_cleansing, cleansing_files
+import re
+import flask
+from cleansing import cleansing
 from db import (
-    create_connection, insert_dictionary_to_db, 
-    insert_result_to_db, show_cleansing_result,
+    create_connection, 
+    insert_result_to_db, show_analisis_result,
     insert_upload_result_to_db
 )
-import flask
-flask.json.provider.DefaultJSONProvider.sort_keys = False
-import pickle, re
-from tensorflow.keras.preprocessing.text import Tokenizer
-from keras.models import load_model
-from tensorflow.keras.preprocessing.sequence import pad_sequences
+from LSTM import lstm, analisis_file
+from NeuralNetwork import text_processing_NN, predict_NN, predict_NN_files
 
-# Set Up Database
-db_connection = create_connection()
-insert_dictionary_to_db(db_connection)
-db_connection.close()
 # initializze flask application
 app = Flask(__name__)
 
@@ -32,9 +27,9 @@ app.json_encoder = LazyJSONEncoder
 # create swagger config & swagger template
 Swagger_template ={
     "info":{
-        "title": LazyString(lambda: "Membersihkan Teks dan Menganalisis Sentimen API"),
+        "title": LazyString(lambda: "Analisis sentimen dalam teks menggunakan LSTM dan NeuralNetwork"),
         "version": LazyString(lambda: "1.0.0"),
-        "description": LazyString(lambda: "Dokumentasi API untuk Membersihkan Teks dan Menganalisisnya")
+        "description": LazyString(lambda: "Dokumentasi API untuk Analisis Sentimen Menggunakan LSTM dan NeuralNetwork")
     },
     "host": LazyString(lambda: request.host)
 }
@@ -60,38 +55,45 @@ def home():
     welcome_msg = {
         "version": "1.0.0",
         "message": "Welcome to Flask API",
-        "author": "Adelia Christyanti dan Sony Dermawan"
+        "author": "Adelia Christyanti dan Sony Dertha Setiawan"
     }
     return jsonify(welcome_msg)
 
-# Show cleansing result
-@swag_from('docs/show_cleansing_result.yml', methods=['GET'])
-@app.route('/show_cleansing_result', methods=['GET'])
-def show_cleansing_result_api():
+# Show analisis result
+@swag_from('docs/show_analisis_result.yml', methods=['GET'])
+@app.route('/show_analisis_result', methods=['GET'])
+def show_analisis_result_api():
     db_connection = create_connection()
-    cleansing_result = show_cleansing_result(db_connection)
-    return jsonify(cleansing_result)
+    analisis_result = show_analisis_result(db_connection)
+    return jsonify(analisis_result)
 
 #cleansing text using form
-@swag_from('docs/cleansing_form.yml', methods=['POST'])
-@app.route('/cleansing_form', methods=['POST'])
-def cleansing_form():
+@swag_from('docs/lstm.yml', methods=['POST'])
+@app.route('/lstm', methods=['POST'])
+def lstm_endpoint():
     # get text from input user
     raw_text = request.form["raw_text"]
     # cleansing text
     start = perf_counter()
-    clean_text = text_cleansing(raw_text)
+    clean_text = cleansing(raw_text)
+    sentiment = lstm(clean_text)
     end = perf_counter()
     time = end - start
+    model = "LSTM"
     print(f'processing time :{time}')
-    result_response ={"raw_text": raw_text, "clean_text": clean_text, "processing time": time}
+    result_response ={"raw_text": raw_text,
+                       "clean_text": clean_text,
+                       "Sentiment": sentiment, 
+                       "Processing time": time, 
+                       "Model": model}
     # insert result to database
     db_connection = create_connection()
-    insert_result_to_db(db_connection, raw_text, clean_text)
+    insert_result_to_db(db_connection, raw_text, clean_text, sentiment, model)
     return jsonify(result_response)
+
 # Cleansing text using csv upload
-@swag_from('docs/cleansing_upload.yml', methods=['POST'])
-@app.route('/cleansing_upload', methods=['POST'])
+@swag_from('docs/lstm_upload.yml', methods=['POST'])
+@app.route('/lstm_upload', methods=['POST'])
 def cleansing_upload():
     # Get file from upload to dataframe
     uploaded_file = request.files['upload_file']
@@ -99,65 +101,67 @@ def cleansing_upload():
     df_upload = pd.read_csv(uploaded_file,encoding ='latin-1').head(1000)
     print('Read dataframe Upload success!')
     start = perf_counter()
-    df_cleansing = cleansing_files(df_upload)
+    df_cleansing = analisis_file(df_upload)
     end = perf_counter()
     time = end - start
+    model = "LSTM"
     print(f'processing time :{time}')
     
     # Upload result to database
     db_connection = create_connection()
-    insert_upload_result_to_db(db_connection, df_cleansing)    
+    insert_upload_result_to_db(db_connection, df_cleansing, model)    
     print("Upload result to database success!")
     result_response = df_cleansing.to_dict(orient='records')
     return jsonify(result_response)
 
-max_features = 96
-# tokenizer = Tokenizer(num_words=max_features, split =' ', lower=True) # ini nanti diganti dari jupyter lab
-file = open('tokenizer/tokenizer.pickle','rb') # tokenizer
-tokenizer = pickle.load(file)
-file.close()
-sentiment = ['negative', 'neutral', 'positive']
-
-# file = open('resources_of_lstm/x_pad_sequences.pickle','rb')
-# pad_sequences = pickle.load(file)
-# file.close()
-
-def cleansing(sent):
-    string = sent.lower()
-    string = re.sub(r'[^a-zA-Z0-9]', ' ', string)
-    string = string.strip()
-    return string
-
-
-
-#file_token = load_model('tokenizer/tokenizer.pickle')
-
-model_file_from_lstm = load_model('model_of_lstm/model.h5')
-
-@swag_from("docs/lstm.yml", methods=['POST'])
-@app.route('/lstm', methods=['POST'])
-def lstm():
-    original_text = request.form.get('text')
-    text = [cleansing(original_text)]
-    # X = tokenizer.texts_to_sequences(total_data)
-    feature = tokenizer.texts_to_sequences(text)# pakai dari jupyter lab
-    feature = pad_sequences(feature, maxlen=max_features)
-
-
-    prediction = model_file_from_lstm.predict(feature)
-    get_sentiment = sentiment[np.argmax(prediction[0])]
-
+# sentimen analysis with NeuralNetwork using form
+@swag_from("docs/NeuralNetwork.yml", methods=['POST']) 
+@app.route('/NeuralNetwork', methods=['POST'])
+def NeuralNetwork():
+    raw_text = request.form.get('text')
+    clean_text = text_processing_NN(raw_text)
+    sentiment = predict_NN(clean_text)
+    model = "NeuralNetwork"
     json_response = {
         'status_code': 200,
         'description': "Result of Sentiment Analysis using LSTM",
         'data':{
-            'raw text': original_text,
-            'clean text':text,
-            'sentiment': get_sentiment
+            'raw text': raw_text,
+            'clean text':clean_text,
+            'sentiment': sentiment,
+            'Model': model
         },
     }
     response_data = jsonify(json_response)
+    # insert result to database
+    db_connection = create_connection()
+    insert_result_to_db(db_connection, raw_text, clean_text, sentiment, model)
     return response_data
+
+# sentimen analysis with NeuralNetwork using csv upload
+@swag_from('docs/NeuralNetwork_upload.yml', methods=['POST'])
+@app.route('/NeuralNetwork_upload', methods=['POST'])
+def NeuralNetwork_upload():
+    # Get file from upload to dataframe
+    uploaded_file = request.files['upload_file']
+    # Read csv file to dataframe
+    df_upload = pd.read_csv(uploaded_file,encoding ='latin-1')
+    print('Read dataframe Upload success!')
+    start = perf_counter()
+    df_predict_NN = predict_NN_files(df_upload)
+    end = perf_counter()
+    time = end - start
+    model = "NeuralNetwork"
+    print(f'processing time :{time}')
+    
+    # Upload result to database 
+    # define new connection
+    db_connection = create_connection()
+    insert_upload_result_to_db(db_connection, df_predict_NN, model)    
+    print("Upload result to database success!")
+    result_response = df_predict_NN.to_dict(orient='records')
+    return jsonify(result_response)
+
 
 if __name__ == '__main__':
     app.run()

@@ -1,0 +1,18 @@
+tags:
+  - name: NeuralNetwrok_upload
+get:
+  description: sentiment analysis from csv file upload
+parameters:
+  - name: upload_file
+    in: formData
+    required: true
+    type: file
+consumes:
+  - multipart/form-data
+responses:
+    '200':
+      description: Successful response
+    '400':
+      description: Bad Request
+    '500':
+      description: Internal Server Error
